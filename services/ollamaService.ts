@@ -85,14 +85,17 @@ export const generateQuestion = async (
   difficulty: Difficulty,
   questionNumber: number,
   previousQuestions: string[],
-  resumeData?: { base64: string, mimeType: string }
+  resumeData?: { base64: string, mimeType: string },
+  forceCoding?: boolean
 ): Promise<{ question: string, requiresCode: boolean, difficulty: Difficulty }> => {
   const isTechRole = isCodeCentricRole(jobRole);
 
   let prompt = `You are an expert interviewer. Generate question #${questionNumber} for a ${difficulty} level ${interviewType} interview for the role of ${jobRole}.
                Avoid these previous questions: ${previousQuestions.join(', ') || 'None'}.
                The role ${isTechRole ? 'is' : 'is NOT'} code-centric.
-               MIX MODALITIES: Most technical questions should be conceptual (verbal). Only 1 in 3 should be coding-based.
+               ${forceCoding === true ? 'CRITICAL: This MUST be a coding question. Ask the candidate to implement a solution to a problem.' : 
+                 forceCoding === false ? 'CRITICAL: This MUST be a conceptual/verbal question. DO NOT ask for code.' :
+                 'MIX MODALITIES: Most technical questions should be conceptual (verbal). Only 1 in 3 should be coding-based.'}
                Return the response in JSON format with these fields:
                - question: string
                - requiresCode: boolean (Set to true if and only if the role is technical and this specifically requires writing code. Most questions should be verbal.)
@@ -132,14 +135,21 @@ export const generateQuestion = async (
   try {
     const content = await callOpenRouter(messages, resumeData ? VISION_MODEL : DEFAULT_MODEL);
     const res = parseAIJSON(content);
-    if (!isTechRole) res.requiresCode = false;
-    if (questionNumber === 1 || questionNumber > 8) res.requiresCode = false;
+    
+    // Apply logic overrides
+    if (forceCoding !== undefined) {
+      res.requiresCode = forceCoding;
+    } else {
+      if (!isTechRole) res.requiresCode = false;
+      if (questionNumber === 1 || questionNumber > 8) res.requiresCode = false;
+    }
+    
     return res;
   } catch (e) {
     console.error("Generate question error:", e);
     return { 
       question: `Could you describe your experience as a ${jobRole}?`, 
-      requiresCode: false, 
+      requiresCode: forceCoding || false, 
       difficulty: "medium" 
     };
   }
@@ -280,11 +290,15 @@ export const updateSkillState = (skills: SkillState[], skillName: string, score:
 export const generateDeterministicQuestion = async (
   jobRole: string,
   skill: string,
-  confidence: number
+  confidence: number,
+  forceCoding?: boolean
 ): Promise<{ question: string, requiresCode: boolean }> => {
+  const isTechRole = isCodeCentricRole(jobRole);
   const prompt = `Generate an interview question for a ${jobRole} role specifically testing '${skill}'. 
                The candidate's current estimated confidence in this skill is ${Math.round(confidence * 100)}%. 
-               If it's technical, you may occasionally require code.
+               ${forceCoding === true ? 'CRITICAL: This MUST be a coding question. Ask the candidate to implement a solution.' : 
+                 forceCoding === false ? 'CRITICAL: This MUST be a conceptual/verbal question. DO NOT ask for code.' :
+                 'If it\'s technical, you may occasionally require code.'}
                Return JSON with 'question' and 'requiresCode'.`;
 
   const messages = [
@@ -294,10 +308,16 @@ export const generateDeterministicQuestion = async (
 
   try {
     const content = await callOpenRouter(messages, DEFAULT_MODEL);
-    return JSON.parse(content);
+    const res = JSON.parse(content);
+    if (forceCoding !== undefined) {
+        res.requiresCode = forceCoding;
+    } else {
+        if (!isTechRole) res.requiresCode = false;
+    }
+    return res;
   } catch (e) {
     console.error("Generate deterministic question error:", e);
-    return { question: `How do you approach ${skill} in your daily work as a ${jobRole}?`, requiresCode: false };
+    return { question: `How do you approach ${skill} in your daily work as a ${jobRole}?`, requiresCode: forceCoding || false };
   }
 };
 

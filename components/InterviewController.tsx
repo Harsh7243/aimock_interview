@@ -16,6 +16,7 @@ export const InterviewController = ({ user }: { user: User }) => {
     const [currentQuestion, setCurrentQuestion] = useState("");
     const [activeSkill, setActiveSkill] = useState("");
     const [requiresCode, setRequiresCode] = useState(false);
+    const [codingQuestionIndices, setCodingQuestionIndices] = useState<number[]>([]);
     const [codeValue, setCodeValue] = useState("");
     const [isEvaluating, setIsEvaluating] = useState(false);
     
@@ -23,16 +24,28 @@ export const InterviewController = ({ user }: { user: User }) => {
 
     const startInterview = async () => {
         setPageState('session');
-        await nextTurn(INITIAL_SKILLS);
+        let indices: number[] = [];
+        if (config.interviewType === 'Technical') {
+            while (indices.length < 2) {
+                const r = Math.floor(Math.random() * (TOTAL_QUESTIONS - 1)) + 1;
+                if (!indices.includes(r)) indices.push(r);
+            }
+            setCodingQuestionIndices(indices);
+        }
+        await nextTurn(INITIAL_SKILLS, 0, indices);
     };
 
-    const nextTurn = async (currentSkills: SkillState[]) => {
+    const nextTurn = async (currentSkills: SkillState[], turnIndex?: number, forcedIndices?: number[]) => {
         setIsEvaluating(true);
         const skill = pickNextSkill(currentSkills);
         setActiveSkill(skill);
         const skillState = currentSkills.find(s => s.name === skill)!;
         
-        const { question, requiresCode: nextRequiresCode } = await generateDeterministicQuestion(config.jobRole, skill, skillState.confidence);
+        const currentTurn = turnIndex !== undefined ? turnIndex : qnaHistory.length;
+        const currentForced = forcedIndices || codingQuestionIndices;
+        const shouldForceCoding = config.interviewType === 'Technical' ? currentForced.includes(currentTurn) : undefined;
+
+        const { question, requiresCode: nextRequiresCode } = await generateDeterministicQuestion(config.jobRole, skill, skillState.confidence, shouldForceCoding);
         
         setCurrentQuestion(question);
         setRequiresCode(nextRequiresCode);

@@ -265,6 +265,7 @@ const InterviewPage: React.FC<{ user: User, navigate: (path: string) => void }> 
     const [isEnding, setIsEnding] = useState(false);
     const [language, setLanguage] = useState<LanguageKey>('javascript');
     const [requiresCode, setRequiresCode] = useState(false);
+    const [codingQuestionIndices, setCodingQuestionIndices] = useState<number[]>([]);
     
     const [codeBuffers, setCodeBuffers] = useState<Record<LanguageKey, string>>({
         javascript: LANGUAGES.javascript.template,
@@ -329,7 +330,18 @@ const InterviewPage: React.FC<{ user: User, navigate: (path: string) => void }> 
         });
 
         const nextDifficulty = feedback?.difficultyNext || currentDifficulty;
-        const result = await generateQuestion(config.jobRole, config.interviewType, nextDifficulty, currentQuestionIndex + 2, updatedSessionData.map(q => q.question), config.resumeData);
+        const nextIndex = currentQuestionIndex + 1;
+        const shouldForceCoding = config.interviewType === 'Technical' ? codingQuestionIndices.includes(nextIndex) : undefined;
+
+        const result = await generateQuestion(
+            config.jobRole, 
+            config.interviewType, 
+            nextDifficulty, 
+            nextIndex + 1, 
+            updatedSessionData.map(q => q.question), 
+            config.resumeData,
+            shouldForceCoding
+        );
         
         const nextSessionData = [...updatedSessionData, { question: result.question, answer: '', requiresCode: result.requiresCode }];
         setSessionData(nextSessionData);
@@ -417,9 +429,23 @@ const InterviewPage: React.FC<{ user: User, navigate: (path: string) => void }> 
         setConfig(parsed);
         const initialLang = getDefaultLanguage(parsed.jobRole);
         setLanguage(initialLang);
+
+        const total = parsed.interviewType === 'HR' ? 10 : 7;
+        let indices: number[] = [];
+        if (parsed.interviewType === 'Technical') {
+            // Pick 2 unique indices between 1 and total - 2 (avoiding the first and usually last question)
+            while (indices.length < 2) {
+                const r = Math.floor(Math.random() * (total - 1)) + 1;
+                if (!indices.includes(r)) indices.push(r);
+            }
+            setCodingQuestionIndices(indices);
+        }
+
         (async () => {
             setIsEvaluating(true);
-            const result = await generateQuestion(parsed.jobRole, parsed.interviewType, 'medium', 1, [], parsed.resumeData);
+            // First question (index 0) is never forced coding
+            const isFirstCoding = parsed.interviewType === 'Technical' ? false : undefined;
+            const result = await generateQuestion(parsed.jobRole, parsed.interviewType, 'medium', 1, [], parsed.resumeData, isFirstCoding);
             setSessionData([{ question: result.question, answer: '', requiresCode: result.requiresCode }]);
             setCurrentDifficulty(result.difficulty);
             setRequiresCode(result.requiresCode);
