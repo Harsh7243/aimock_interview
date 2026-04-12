@@ -8,13 +8,13 @@ import { getFirestore, doc, setDoc, collection, addDoc, getDocs, query, orderBy,
 import type { InterviewSession } from "../types";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyD_Qy6sXqx9ecYHe8u88WcZybrLlcK03VM",
-  authDomain: "interviewauth-58115.firebaseapp.com",
-  projectId: "interviewauth-58115",
-  storageBucket: "interviewauth-58115.appspot.com",
-  messagingSenderId: "580613695080",
-  appId: "1:580613695080:web:28759594c3ae448eb07ddd",
-  measurementId: "G-G1T96D9J04"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 const app = initializeApp(firebaseConfig);
